@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,15 @@
 
 package org.springframework.security.config.annotation.web.configurers;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.ObjectPostProcessor;
 import org.springframework.security.config.annotation.SecurityContextChangedListenerConfig;
@@ -31,6 +34,8 @@ import org.springframework.security.config.annotation.web.configuration.WebSecur
 import org.springframework.security.config.test.SpringTestContext;
 import org.springframework.security.config.test.SpringTestContextExtension;
 import org.springframework.security.config.users.AuthenticationTestConfiguration;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextChangedListener;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
 import org.springframework.security.core.userdetails.PasswordEncodedUser;
@@ -67,6 +72,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * @author Rob Winch
  * @author Eleftheria Stein
+ * @author Yanming Zhou
  * @since 5.1
  */
 @ExtendWith(SpringTestContextExtension.class)
@@ -376,6 +382,14 @@ public class FormLoginConfigurerTests {
 		ObjectPostProcessorConfig.objectPostProcessor = spy(ReflectingObjectPostProcessor.class);
 		this.spring.register(ObjectPostProcessorConfig.class).autowire();
 		verify(ObjectPostProcessorConfig.objectPostProcessor).postProcess(any(ExceptionTranslationFilter.class));
+	}
+
+	@Test
+	public void loginWhenCustomizedAuthenticationFilterConfigured() throws Exception {
+		this.spring.register(FormLoginWithCustomizedAuthenticationFilterConfig.class).autowire();
+		SecurityMockMvcRequestBuilders.FormLoginRequestBuilder loginRequest = formLogin().user("username", "anyuser")
+			.password("password", "anypassword");
+		this.mockMvc.perform(loginRequest).andExpect(status().isFound()).andExpect(redirectedUrl("/"));
 	}
 
 	@Configuration
@@ -719,6 +733,41 @@ public class FormLoginConfigurerTests {
 		@Bean
 		static ObjectPostProcessor<Object> objectPostProcessor() {
 			return objectPostProcessor;
+		}
+
+	}
+
+	@Configuration
+	@EnableWebSecurity
+	static class FormLoginWithCustomizedAuthenticationFilterConfig {
+
+		@Bean
+		SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+			return http.authorizeHttpRequests((configurer) -> configurer.anyRequest().authenticated())
+				.formLogin((configurer) -> configurer
+					.authenticationFilter(new AlwaysSuccessAuthenticationFilter(mock(AuthenticationManager.class)))
+					.loginPage("/login"))
+				.build();
+		}
+
+	}
+
+	static class AlwaysSuccessAuthenticationFilter extends UsernamePasswordAuthenticationFilter {
+
+		AlwaysSuccessAuthenticationFilter(AuthenticationManager authenticationManager) {
+			super(authenticationManager);
+		}
+
+		@Override
+		public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response)
+				throws AuthenticationException {
+			try {
+				return super.attemptAuthentication(request, response);
+			}
+			catch (AuthenticationException ex) {
+				return new UsernamePasswordAuthenticationToken(super.obtainUsername(request),
+						super.obtainPassword(request));
+			}
 		}
 
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,6 +55,7 @@ import org.springframework.web.accept.HeaderContentNegotiationStrategy;
  * @param <F> refers to the {@link AbstractAuthenticationProcessingFilter} that is being
  * built
  * @author Rob Winch
+ * @author Yanming Zhou
  * @since 3.2
  * @see FormLoginConfigurer
  */
@@ -103,6 +104,15 @@ public abstract class AbstractAuthenticationFilterConfigurer<B extends HttpSecur
 		if (defaultLoginProcessingUrl != null) {
 			loginProcessingUrl(defaultLoginProcessingUrl);
 		}
+	}
+
+	/**
+	 * Sets the customized Authentication Filter if needed
+	 * @param authenticationFilter the Authentication Filter
+	 */
+	public T authenticationFilter(F authenticationFilter) {
+		setAuthenticationFilter(authenticationFilter);
+		return getSelf();
 	}
 
 	/**
