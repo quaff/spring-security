@@ -56,6 +56,7 @@ import org.springframework.web.accept.HeaderContentNegotiationStrategy;
  * @param <F> refers to the {@link AbstractAuthenticationProcessingFilter} that is being
  * built
  * @author Rob Winch
+ * @author Yanming Zhou
  * @since 3.2
  * @see FormLoginConfigurer
  */
@@ -104,6 +105,15 @@ public abstract class AbstractAuthenticationFilterConfigurer<B extends HttpSecur
 		if (defaultLoginProcessingUrl != null) {
 			loginProcessingUrl(defaultLoginProcessingUrl);
 		}
+	}
+
+	/**
+	 * Sets the customized Authentication Filter if needed
+	 * @param authenticationFilter the Authentication Filter
+	 */
+	public T authenticationFilter(F authenticationFilter) {
+		setAuthenticationFilter(authenticationFilter);
+		return getSelf();
 	}
 
 	/**

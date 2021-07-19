@@ -16,6 +16,8 @@
 
 package org.springframework.security.config.annotation.web.configurers;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -23,6 +25,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.authorization.AllAuthoritiesAuthorizationManager;
 import org.springframework.security.authorization.AuthenticatedAuthorizationManager;
@@ -40,6 +43,8 @@ import org.springframework.security.config.annotation.web.configuration.WebSecur
 import org.springframework.security.config.test.SpringTestContext;
 import org.springframework.security.config.test.SpringTestContextExtension;
 import org.springframework.security.config.users.AuthenticationTestConfiguration;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.authority.FactorGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextChangedListener;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
@@ -86,6 +91,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * @author Rob Winch
  * @author Eleftheria Stein
+ * @author Yanming Zhou
  * @since 5.1
  */
 @ExtendWith(SpringTestContextExtension.class)
@@ -460,6 +466,49 @@ public class FormLoginConfigurerTests {
 		this.mockMvc.perform(get("/profile").with(user(authorized))).andExpect(status().isOk());
 	}
 
+	@Test
+	public void loginWhenCustomizedAuthenticationFilterConfigured() throws Exception {
+		this.spring.register(FormLoginWithCustomizedAuthenticationFilterConfig.class).autowire();
+		SecurityMockMvcRequestBuilders.FormLoginRequestBuilder loginRequest = formLogin().user("username", "anyuser")
+			.password("password", "anypassword");
+		this.mockMvc.perform(loginRequest).andExpect(status().isFound()).andExpect(redirectedUrl("/"));
+	}
+
+	@Configuration
+	@EnableWebSecurity
+	static class FormLoginWithCustomizedAuthenticationFilterConfig {
+
+		@Bean
+		SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+			return http.authorizeHttpRequests((configurer) -> configurer.anyRequest().authenticated())
+				.formLogin((configurer) -> configurer
+					.authenticationFilter(new AlwaysSuccessAuthenticationFilter(mock(AuthenticationManager.class)))
+					.loginPage("/login"))
+				.build();
+		}
+
+	}
+
+	static class AlwaysSuccessAuthenticationFilter extends UsernamePasswordAuthenticationFilter {
+
+		AlwaysSuccessAuthenticationFilter(AuthenticationManager authenticationManager) {
+			super(authenticationManager);
+		}
+
+		@Override
+		public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response)
+				throws AuthenticationException {
+			try {
+				return super.attemptAuthentication(request, response);
+			}
+			catch (AuthenticationException ex) {
+				return new UsernamePasswordAuthenticationToken(super.obtainUsername(request),
+						super.obtainPassword(request));
+			}
+		}
+
+	}
+
 	@Configuration
 	@EnableWebSecurity
 	static class RequestCacheConfig {
@@ -470,9 +519,9 @@ public class FormLoginConfigurerTests {
 		SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 			// @formatter:off
 			http
-				.formLogin(withDefaults())
-				.requestCache((cache) -> cache
-					.requestCache(this.requestCache));
+					.formLogin(withDefaults())
+					.requestCache((cache) -> cache
+							.requestCache(this.requestCache));
 			return http.build();
 			// @formatter:on
 		}
@@ -504,10 +553,10 @@ public class FormLoginConfigurerTests {
 		SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 			// @formatter:off
 			http
-				.authorizeHttpRequests((requests) -> requests
-					.anyRequest().hasRole("USER"))
-				.formLogin((login) -> login
-					.loginPage("/login"));
+					.authorizeHttpRequests((requests) -> requests
+							.anyRequest().hasRole("USER"))
+					.formLogin((login) -> login
+							.loginPage("/login"));
 			// @formatter:on
 			return http.build();
 		}
@@ -527,10 +576,10 @@ public class FormLoginConfigurerTests {
 		SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 			// @formatter:off
 			http
-				.authorizeHttpRequests((authorize) -> authorize
-						.anyRequest().hasRole("USER")
-				)
-				.formLogin(withDefaults());
+					.authorizeHttpRequests((authorize) -> authorize
+							.anyRequest().hasRole("USER")
+					)
+					.formLogin(withDefaults());
 			// @formatter:on
 			return http.build();
 		}
@@ -550,10 +599,10 @@ public class FormLoginConfigurerTests {
 		SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 			// @formatter:off
 			http
-				.authorizeHttpRequests((requests) -> requests
-					.anyRequest().hasRole("USER"))
-				.formLogin((login) -> login
-					.permitAll());
+					.authorizeHttpRequests((requests) -> requests
+							.anyRequest().hasRole("USER"))
+					.formLogin((login) -> login
+							.permitAll());
 			return http.build();
 			// @formatter:on
 		}
@@ -568,13 +617,13 @@ public class FormLoginConfigurerTests {
 		SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 			// @formatter:off
 			http
-				.authorizeHttpRequests((requests) -> requests
-					.anyRequest().hasRole("USER"))
-				.formLogin((login) -> login
-					.loginPage("/authenticate")
-					.permitAll())
-				.logout((logout) -> logout
-					.permitAll());
+					.authorizeHttpRequests((requests) -> requests
+							.anyRequest().hasRole("USER"))
+					.formLogin((login) -> login
+							.loginPage("/authenticate")
+							.permitAll())
+					.logout((logout) -> logout
+							.permitAll());
 			return http.build();
 			// @formatter:on
 		}
@@ -589,14 +638,14 @@ public class FormLoginConfigurerTests {
 		SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 			// @formatter:off
 			http
-				.authorizeHttpRequests((authorize) -> authorize
-						.anyRequest().hasRole("USER")
-				)
-				.formLogin((formLogin) -> formLogin
-						.loginPage("/authenticate")
-						.permitAll()
-				)
-				.logout(LogoutConfigurer::permitAll);
+					.authorizeHttpRequests((authorize) -> authorize
+							.anyRequest().hasRole("USER")
+					)
+					.formLogin((formLogin) -> formLogin
+							.loginPage("/authenticate")
+							.permitAll()
+					)
+					.logout(LogoutConfigurer::permitAll);
 			return http.build();
 			// @formatter:on
 		}
@@ -611,19 +660,19 @@ public class FormLoginConfigurerTests {
 		SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 			// @formatter:off
 			http
-				.authorizeHttpRequests((requests) -> requests
-					.anyRequest().authenticated())
-				.formLogin((login) -> login
-					.loginProcessingUrl("/loginCheck")
-					.loginPage("/login")
-					.defaultSuccessUrl("/", true)
-					.passwordParameter("password")
-					.usernameParameter("username")
-					.permitAll())
-				.logout((logout) -> logout
-					.logoutSuccessUrl("/login")
-					.logoutUrl("/logout")
-					.deleteCookies("JSESSIONID"));
+					.authorizeHttpRequests((requests) -> requests
+							.anyRequest().authenticated())
+					.formLogin((login) -> login
+							.loginProcessingUrl("/loginCheck")
+							.loginPage("/login")
+							.defaultSuccessUrl("/", true)
+							.passwordParameter("password")
+							.usernameParameter("username")
+							.permitAll())
+					.logout((logout) -> logout
+							.logoutSuccessUrl("/login")
+							.logoutUrl("/logout")
+							.deleteCookies("JSESSIONID"));
 			// @formatter:on
 			return http.build();
 		}
@@ -643,20 +692,20 @@ public class FormLoginConfigurerTests {
 		SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 			// @formatter:off
 			http
-				.authorizeHttpRequests((authorize) -> authorize
-						.anyRequest().authenticated()
-				)
-				.formLogin((formLogin) -> formLogin
-						.loginProcessingUrl("/loginCheck")
-						.loginPage("/login")
-						.defaultSuccessUrl("/", true)
-						.permitAll()
-				)
-				.logout((logout) -> logout
-						.logoutSuccessUrl("/login")
-						.logoutUrl("/logout")
-						.deleteCookies("JSESSIONID")
-				);
+					.authorizeHttpRequests((authorize) -> authorize
+							.anyRequest().authenticated()
+					)
+					.formLogin((formLogin) -> formLogin
+							.loginProcessingUrl("/loginCheck")
+							.loginPage("/login")
+							.defaultSuccessUrl("/", true)
+							.permitAll()
+					)
+					.logout((logout) -> logout
+							.logoutSuccessUrl("/login")
+							.logoutUrl("/logout")
+							.deleteCookies("JSESSIONID")
+					);
 			// @formatter:on
 			return http.build();
 		}
@@ -678,12 +727,12 @@ public class FormLoginConfigurerTests {
 		SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 			// @formatter:off
 			http
-				.authorizeHttpRequests((requests) -> requests
-					.anyRequest().hasRole("USER"))
-				.formLogin((login) -> login
-					.permitAll())
-				.portMapper((mapper) -> mapper
-					.portMapper(PORT_MAPPER));
+					.authorizeHttpRequests((requests) -> requests
+							.anyRequest().hasRole("USER"))
+					.formLogin((login) -> login
+							.permitAll())
+					.portMapper((mapper) -> mapper
+							.portMapper(PORT_MAPPER));
 			// @formatter:on
 			LoginUrlAuthenticationEntryPoint authenticationEntryPoint = (LoginUrlAuthenticationEntryPoint) http
 				.getConfigurer(FormLoginConfigurer.class)
@@ -704,11 +753,11 @@ public class FormLoginConfigurerTests {
 		SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 			// @formatter:off
 			http
-				.authorizeHttpRequests((requests) -> requests
-					.anyRequest().hasRole("USER"))
-				.formLogin((login) -> login
-					.failureHandler(FAILURE_HANDLER)
-					.permitAll());
+					.authorizeHttpRequests((requests) -> requests
+							.anyRequest().hasRole("USER"))
+					.formLogin((login) -> login
+							.failureHandler(FAILURE_HANDLER)
+							.permitAll());
 			return http.build();
 			// @formatter:on
 		}
@@ -723,9 +772,9 @@ public class FormLoginConfigurerTests {
 		SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 			// @formatter:off
 			http
-				.formLogin((login) -> login
-					.usernameParameter("custom-username"))
-				.formLogin(withDefaults());
+					.formLogin((login) -> login
+							.usernameParameter("custom-username"))
+					.formLogin(withDefaults());
 			// @formatter:on
 			return http.build();
 		}
@@ -745,14 +794,14 @@ public class FormLoginConfigurerTests {
 		SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 			// @formatter:off
 			http
-				.csrf((csrf) -> csrf
-					.disable())
-				.authorizeHttpRequests((requests) -> requests
-					.anyRequest().authenticated())
-				.formLogin((login) -> login
-					.failureForwardUrl("/failure_forward_url")
-					.successForwardUrl("/success_forward_url")
-					.permitAll());
+					.csrf((csrf) -> csrf
+							.disable())
+					.authorizeHttpRequests((requests) -> requests
+							.anyRequest().authenticated())
+					.formLogin((login) -> login
+							.failureForwardUrl("/failure_forward_url")
+							.successForwardUrl("/success_forward_url")
+							.permitAll());
 			// @formatter:on
 			return http.build();
 		}
@@ -774,8 +823,8 @@ public class FormLoginConfigurerTests {
 		SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 			// @formatter:off
 			http
-				.exceptionHandling(withDefaults())
-				.formLogin(withDefaults());
+					.exceptionHandling(withDefaults())
+					.formLogin(withDefaults());
 			return http.build();
 			// @formatter:on
 		}
@@ -805,12 +854,12 @@ public class FormLoginConfigurerTests {
 				AuthorizationManagerFactory<RequestAuthorizationContext> authz) throws Exception {
 			// @formatter:off
 			http
-				.formLogin(Customizer.withDefaults())
-				.oneTimeTokenLogin(Customizer.withDefaults())
-				.authorizeHttpRequests((authorize) -> authorize
-					.requestMatchers("/profile").access(authz.hasAuthority("profile:read"))
-					.anyRequest().access(authz.authenticated())
-				);
+					.formLogin(Customizer.withDefaults())
+					.oneTimeTokenLogin(Customizer.withDefaults())
+					.authorizeHttpRequests((authorize) -> authorize
+							.requestMatchers("/profile").access(authz.hasAuthority("profile:read"))
+							.anyRequest().access(authz.authenticated())
+					);
 			return http.build();
 			// @formatter:on
 		}
@@ -838,11 +887,11 @@ public class FormLoginConfigurerTests {
 				AuthorizationManagerFactory<RequestAuthorizationContext> authz) throws Exception {
 			// @formatter:off
 			http
-				.x509(Customizer.withDefaults())
-				.formLogin(Customizer.withDefaults())
-				.authorizeHttpRequests((authorize) -> authorize
-					.anyRequest().access(authz.authenticated())
-				);
+					.x509(Customizer.withDefaults())
+					.formLogin(Customizer.withDefaults())
+					.authorizeHttpRequests((authorize) -> authorize
+							.anyRequest().access(authz.authenticated())
+					);
 			return http.build();
 			// @formatter:on
 		}
